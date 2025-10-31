@@ -11,6 +11,9 @@ export function Redirect () {
         if(session.data?.user) {
             router.push("/dashboard")
         }
+        else {
+            router.push("/")
+        }
     }, [session])
 
     return null
