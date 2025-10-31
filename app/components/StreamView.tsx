@@ -2,19 +2,15 @@
 
 var YT_REGEX = /^(?:https?:\/\/)?(?:www\.)?(?:m\.)?(?:youtube\.com\/(?:watch\?(?!.*\blist=)(?:.*&)?v=|embed\/|v\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})(?:[?&]\S+)?$/;
 
-
 import { toast, ToastContainer } from 'react-toastify'
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { ChevronUp, ChevronDown, ThumbsDown, Play, Share2, Axis3DIcon } from "lucide-react"
+import { CircleChevronUp, CircleChevronDown, ChevronDown, ThumbsDown, Play, Share2, Axis3DIcon, ChevronUp, LogOut } from "lucide-react"
 import 'react-toastify/dist/ReactToastify.css'
-import LiteYouTubeEmbed from 'react-lite-youtube-embed';
-import { Card, CardContent } from "@/components/ui/card"
 import axios from "axios";
 import { useEffect, useRef, useState } from "react";
 import YouTubePlayer from "youtube-player";
 import { signIn, signOut, useSession } from 'next-auth/react'
 import { Redirect } from './Redirect'
+import { Button } from '@/components/ui/button';
 
 interface Video {
     "id": string,
@@ -30,7 +26,7 @@ interface Video {
     "haveUpvoted": boolean
 }
 
-const REFRESH_INTERVAL_MS = 10 * 1000;
+const REFRESH_INTERVAL_MS = 5 * 1000;
 
 export default function StreamView({
     creatorId,
@@ -71,7 +67,10 @@ export default function StreamView({
     useEffect(() => {
         refreshStreams();
         const interval = setInterval(() => {
+            refreshStreams();
         }, REFRESH_INTERVAL_MS)
+        console.log(interval);
+        
         return () => clearInterval(interval);
     }, [])
 
@@ -109,7 +108,11 @@ export default function StreamView({
             url: inputLink
         })
 
+        console.log("input link ", inputLink);
+        
         setQueue([...queue, await res.data])
+        console.log(queue);
+        
         setLoading(false);
         setInputLink("");
     }
@@ -144,28 +147,67 @@ export default function StreamView({
         }
     }
 
+    
+
+        const handleShare = () => {
+        const shareableLink = `http://${window.location.hostname}:3000/creator/${creatorId}`
+        navigator.clipboard.writeText(shareableLink).then(() => {
+        toast.success('Link copied to clipboard!', {
+            position: "top-right",
+            autoClose: 3000,
+            hideProgressBar: false,
+            closeOnClick: true,
+            pauseOnHover: true,
+            draggable: true,
+            progress: undefined,
+        })
+        }, (err) => {
+        console.error('Could not copy text: ', err)
+        toast.error('Failed to copy link. Please try again.', {
+            position: "top-right",
+            autoClose: 3000,
+            hideProgressBar: false,
+            closeOnClick: true,
+            pauseOnHover: true,
+            draggable: true,
+            progress: undefined,
+        })
+        })
+    }
 
     console.log("HERE",currentVideo?.url);
+    
     
     const session = useSession();
     return (
         <main className="min-h-screen bg-linear-to-b from-slate-950 via-slate-900 to-slate-950">
             <div>
-                <div className="flex justify-between">
-                    <div className=" px-4 p-5 mb-12">
+                <div className="px-4 p-5 flex justify-between">
+                    <div className="mb-12">
                         <h1 className="text-5xl font-bold text-transparent bg-clip-text bg-linear-to-r from-emerald-400 to-cyan-400 mb-2">
                             Muzetee
                         </h1>
                         <p className="text-slate-400">Help choose the next song to stream</p>
                     </div>
                     <div>
-                        {session.data?.user && <button className="bg-primary text-primary-foreground px-6 py-2 rounded-lg font-medium hover:bg-primary/90 transition cursor-pointer" onClick={() => signOut()} >
-                            logout
+                        <div className="flex">
+
+                        
+                        <div className="flex px-7">
+                            <button onClick={handleShare} className="cursor-pointer">
+                            <Share2 />
+                            </button>
+                        </div>
+                        
+                        {session.data?.user && <button className="cursor-pointer" onClick={() => signOut()} >
+
+                        <LogOut></LogOut>
                         </button>}
                         {!session.data?.user && <button onClick={() => signIn()} className="bg-primary text-primary-foreground px-6 py-2 rounded-lg font-medium hover:bg-primary/90 transition cursor-pointer">
                             singIn
                         </button>}
                         <Redirect />
+                        </div>
                     </div>
                 </div>
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -175,12 +217,14 @@ export default function StreamView({
                         {/* Player Section */}
                         <div className="bg-slate-800/40 border border-slate-700 rounded-2xl overflow-hidden backdrop-blur-md shadow-lg">
                             <iframe
-        className="w-full h-full"
-        src={`https://youtube.com/embed/${currentVideo?.extractedId}`}
-        title="YouTube video player"
-        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                                className="w-full"
+                                src={`https://youtube.com/embed/${currentVideo?.extractedId}`}
+                                width={200}
+                                height={450}
+                                title="YouTube video player"
+                                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
         
-      />
+                            />
                         </div>
 
                         {/* Add Song Form */}
@@ -204,6 +248,7 @@ export default function StreamView({
                                 {loading ? "Adding..." : "Add"}
                             </button>
                         </form>
+                        
                     </div>
 
                     {/* === Right Side: Queue === */}
@@ -215,26 +260,36 @@ export default function StreamView({
                             ) : (
                                 queue.map((video) => (
                                     <div
-                                        key={video.id}
-                                        className="flex justify-between items-center bg-slate-900/50 rounded-lg p-4 border border-slate-700 hover:bg-slate-800/50 transition"
+                                    key={video.id}
+                                    className="flex justify-between items-center bg-slate-900/50 rounded-lg p-4 border border-slate-700 hover:bg-slate-800/50 transition"
                                     >
                                         <div className="flex flex-col">
-                                            <span className="font-medium">{video.title}</span>
+                                            <div>
+                                                <img src={video.smallImg} width={200} height={120} alt="No image" />
+                                            </div>
+                                            <div>
+                                                <span className="font-medium">{video.title}</span>
+                                            </div>
                                         </div>
-
                                         <div className="flex items-center gap-2">
                                             <button
                                                 onClick={() => handleVote(video.id, true)}
+                                                disabled={video.haveUpvoted}
                                                 className={`px-3 py-1 rounded-md border border-slate-700 hover:bg-slate-700 transition ${video.haveUpvoted ? "text-green-400" : "text-slate-300"
-                                                    }`}
+                                                    } ${video.haveUpvoted ? "opacity-50 cursor-not-allowed": ""}`}
                                             >
-                                                ▲ {video.upvotes}
+                                                <CircleChevronUp> 
+                                                </CircleChevronUp>
+                                                    {video.upvotes}
                                             </button>
                                             <button
                                                 onClick={() => handleVote(video.id, false)}
-                                                className="px-3 py-1 rounded-md border border-slate-700 hover:bg-slate-700 transition text-red-400"
+                                                disabled={!video.haveUpvoted}
+                                                className={`px-3 py-1 rounded-md border border-slate-700 hover:bg-slate-700 transition ${!video.haveUpvoted ? "text-red-400" : "text-slate-300"} ${video.haveUpvoted === false ? "opacity-50 cursor-not-allowed": ""}`}
                                             >
-                                                ▼
+                                                <CircleChevronDown>
+                                                
+                                                </CircleChevronDown>
                                             </button>
                                         </div>
                                     </div>
@@ -254,6 +309,18 @@ export default function StreamView({
                         )}
                     </div>
                 </div>
+                 <ToastContainer 
+                    position="top-right"
+                    autoClose={3000}
+                    hideProgressBar={false}
+                    newestOnTop={false}
+                    closeOnClick
+                    rtl={false}
+                    pauseOnFocusLoss
+                    draggable
+                    pauseOnHover
+                    theme="dark"
+                />
             </div>
         </main>
     )

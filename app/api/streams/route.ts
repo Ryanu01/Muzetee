@@ -40,8 +40,10 @@ export async function POST (req: NextRequest) {
             }
         });
         return NextResponse.json({
-            message: "Added stream",
-            id: stream.id
+            ...stream,
+            hasUpvoted: false,
+            upvotes: 0,
+            message: "Added stream",   
         }, {
             status: 200
         })
@@ -49,7 +51,8 @@ export async function POST (req: NextRequest) {
         console.log(error);
         
         return NextResponse.json({
-            message: "Error while adding a stream"
+            message: "Error while adding a stream",
+
         }, {
             status: 411
         })
