@@ -28,11 +28,14 @@ model Stream {
   id                String        @id @default(uuid())
   type              Type
   active            Boolean       @default(true)
-  url               String
+  url               String        
   title             String        @default("")
+  played            Boolean       @default(false)
+  playedTs          DateTime?      
+  createdAt         DateTime      @default(now())   
   smallImg          String        @default("")
   bigImg            String        @default("")
-  extractedId       String   
+  extractedId       String        
   userId            String
   user              User          @relation(fields: [userId], references: [id])
   upvotes           Upvote[]
