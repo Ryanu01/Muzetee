@@ -1,4 +1,3 @@
-"use client"
 
 import StreamView from "@/app/components/StreamView";
 

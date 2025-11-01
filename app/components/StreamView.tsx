@@ -1,4 +1,4 @@
-"use client"
+'use client'
 
 var YT_REGEX = /^(?:https?:\/\/)?(?:www\.)?(?:m\.)?(?:youtube\.com\/(?:watch\?(?!.*\blist=)(?:.*&)?v=|embed\/|v\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})(?:[?&]\S+)?$/;
 
@@ -11,6 +11,7 @@ import YouTubePlayer from "youtube-player";
 import { signIn, signOut, useSession } from 'next-auth/react'
 import { Redirect } from './Redirect'
 import { Button } from '@/components/ui/button';
+import Auth from './Auth';
 
 interface Video {
     "id": string,
@@ -41,33 +42,38 @@ export default function StreamView({
     const [loading, setLoading] = useState(false);
     const [playNextLoader, setPlayNextLoader] = useState(false);
     const videoPlayerRef = useRef<HTMLDivElement>(null);
+    const session = useSession();
+    const [playedVideoIds, setPlayedVideoIds] = useState<Set<string>>(new Set());
 
-
-   async function refreshStreams() {
-    try {
-            console.log("Creator ID:", creatorId); 
+    async function refreshStreams() {
+        try {
             const res = await axios.get(`/api/streams/?creatorId=${creatorId}`, {
                 withCredentials: true
             });
-            
+
             const { streams } = res.data;
-            
+
             if (!streams || streams.length === 0) {
-                console.log("No streams available");
-                    setQueue([]);
-                    setCurrentVideo(null);
-                    return;
+                setQueue([]);
+                setCurrentVideo(null);
+                return;
             }
-            
+            const unplayedStreams = streams.filter((stream: any) => 
+                !playedVideoIds.has(stream.id)
+            );
+
+            if(unplayedStreams.length === 0) {
+                setQueue([]);
+                setCurrentVideo(null);
+                return;
+            }
             const sortedStreams = streams.sort((a: any, b: any) => b.upvotes - a.upvotes);
             setQueue(sortedStreams);
-            
-            console.log("Streams:", streams);
-            console.log("First stream ID:", streams[0]?.id);
+
             
             setCurrentVideo(video => {
                 if (video?.id === sortedStreams[0].id) {
-                    return video; 
+                    return video;
                 }
                 return sortedStreams[0];
             });
@@ -80,8 +86,7 @@ export default function StreamView({
         const interval = setInterval(() => {
             refreshStreams();
         }, REFRESH_INTERVAL_MS)
-        console.log(interval);
-        
+
         return () => clearInterval(interval);
     }, [])
 
@@ -98,12 +103,15 @@ export default function StreamView({
 
         player.playVideo();
         function eventHandler(event: any) {
-            console.log(event);
-            console.log((event.data));
+            if (event.data === 1) {
+            setPlayedVideoIds(prev => new Set(prev).add(currentVideo?.id ?? ""));
+            setQueue(prevQueue => prevQueue.filter(video => video.extractedId !== currentVideo?.extractedId));
+            }
             if (event.data === 0) {
                 playNext();
             }
         };
+        
 
         player.on('stateChange', eventHandler);
         return () => {
@@ -111,19 +119,18 @@ export default function StreamView({
         }
     }, [currentVideo, videoPlayerRef])
 
+    
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setLoading(true);
-        const res = await axios.post("api/streams", {
+        const res = await axios.post("/api/streams", {
             creatorId,
             url: inputLink
         })
 
-        console.log("input link ", inputLink);
-        
+
         setQueue([...queue, await res.data])
-        console.log(queue);
-        
+
         setLoading(false);
         setInputLink("");
     }
@@ -137,7 +144,7 @@ export default function StreamView({
         } : video
         ).sort((a, b) => (b.upvotes) - (a.upvotes)))
 
-        axios.post(`api/streams/${isUpvote ? "upvote" : "downvote"}`, {
+        axios.post(`/api/streams/${isUpvote ? "upvote" : "downvote"}`, {
             streamId: id
         })
 
@@ -147,49 +154,42 @@ export default function StreamView({
         if (queue.length > 0) {
             try {
                 setPlayNextLoader(true)
-                const data = await axios.get('api/streams/')
+                const data = await axios.get('api/streams/next')
                 const json = await data.data;
+                console.warn("Logging json over here ", json);
+
                 setCurrentVideo(json.streams);
-                setQueue(q => q.filter(x => x.id !== json.stream?.id))
+                setQueue(q => q.filter(x => x.id !== json.streams?.id))
             } catch (error) {
-                console.log(error);
+                console.error(error);
             }
             setPlayNextLoader(false);
         }
     }
 
-    
 
-        const handleShare = () => {
-        const shareableLink = `${window.location.hostname}/creator/${creatorId}`
+    const handleShare = () => {
+        if (typeof window === 'undefined') return
+
+        // Include protocol (http/https) for proper URL
+        const shareableLink = `${window.location.protocol}//${window.location.host}/creator/${creatorId}`
+
         navigator.clipboard.writeText(shareableLink).then(() => {
-        toast.success('Link copied to clipboard!', {
-            position: "top-right",
-            autoClose: 3000,
-            hideProgressBar: false,
-            closeOnClick: true,
-            pauseOnHover: true,
-            draggable: true,
-            progress: undefined,
-        })
-        }, (err) => {
-        console.error('Could not copy text: ', err)
-        toast.error('Failed to copy link. Please try again.', {
-            position: "top-right",
-            autoClose: 3000,
-            hideProgressBar: false,
-            closeOnClick: true,
-            pauseOnHover: true,
-            draggable: true,
-            progress: undefined,
-        })
+            toast.success('Link copied to clipboard!', {
+                position: "top-right",
+                autoClose: 3000,
+            })
+        }).catch((err) => {
+            console.error('Could not copy text: ', err)
+            toast.error('Failed to copy link. Please try again.', {
+                position: "top-right",
+                autoClose: 3000,
+            })
         })
     }
 
-    console.log("HERE",currentVideo?.url);
-    
-    
-    const session = useSession();
+
+
     return (
         <main className="min-h-screen bg-linear-to-b from-slate-950 via-slate-900 to-slate-950">
             <div>
@@ -203,21 +203,14 @@ export default function StreamView({
                     <div>
                         <div className="flex">
 
-                        
-                        <div className="flex px-7">
-                            <button onClick={handleShare} className="cursor-pointer">
-                            <Share2 />
-                            </button>
-                        </div>
-                        
-                        {session.data?.user && <button className="cursor-pointer" onClick={() => signOut()} >
 
-                        <LogOut></LogOut>
-                        </button>}
-                        {!session.data?.user && <button onClick={() => signIn()} className="bg-primary text-primary-foreground px-6 py-2 rounded-lg font-medium hover:bg-primary/90 transition cursor-pointer">
-                            singIn
-                        </button>}
-                        <Redirect />
+                            <div className="flex px-7">
+                                <button onClick={handleShare} className="cursor-pointer">
+                                    <Share2 />
+                                </button>
+                            </div>
+
+                            <Auth creatorId={creatorId}/>
                         </div>
                     </div>
                 </div>
@@ -226,17 +219,18 @@ export default function StreamView({
                     <div className="lg:col-span-2 flex flex-col gap-8">
 
                         {/* Player Section */}
-                        <div className="bg-slate-800/40 border border-slate-700 rounded-2xl overflow-hidden backdrop-blur-md shadow-lg">
-                            <iframe
-                                className="w-full"
-                                src={`https://youtube.com/embed/${currentVideo?.extractedId}`}
-                                width={200}
-                                height={450}
-                                title="YouTube video player"
-                                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-        
-                            />
-                        </div>
+                        {currentVideo ? (
+                            <div className="bg-slate-800/40 border border-slate-700 rounded-2xl overflow-hidden backdrop-blur-md  shadow-lg">
+                                {playVideo ? <>
+                                    <div ref={videoPlayerRef} className='w-full' />
+                                </> : <>
+                                        <img src={currentVideo?.bigImg} className='w-full' alt="Image not loading" />
+                                </>
+                                }
+                            </div>
+                            ) : (
+                                <p className='mt-2 text-center font-semibold text-white'>No video playing</p>
+                            )}
 
                         {/* Add Song Form */}
                         <form
@@ -249,7 +243,7 @@ export default function StreamView({
                                 value={inputLink}
                                 onChange={(e) => setInputLink(e.target.value)}
                                 placeholder="Enter YouTube link..."
-                                className="flex-1 bg-transparent border-none outline-none text-white placeholder-slate-400"
+                                className="flex-1 bg-transparent border-none outline-none w-full h-full text-white placeholder-slate-400"
                             />
                             <button
                                 type="submit"
@@ -259,7 +253,7 @@ export default function StreamView({
                                 {loading ? "Adding..." : "Add"}
                             </button>
                         </form>
-                        
+
                     </div>
 
                     {/* === Right Side: Queue === */}
@@ -269,16 +263,18 @@ export default function StreamView({
                             {queue.length === 0 ? (
                                 <p className="text-slate-500 text-center py-8">No songs in queue</p>
                             ) : (
-                                queue.map((video) => (
+                                queue
+                                .filter(video => video.id !== currentVideo?.id)
+                                .map((video) => (
                                     <div
-                                    key={video.id}
-                                    className="flex justify-between items-center bg-slate-900/50 rounded-lg p-4 border border-slate-700 hover:bg-slate-800/50 transition"
+                                        key={video.id}
+                                        className="flex justify-between items-center bg-slate-900/50 rounded-lg p-4 border border-slate-700 hover:bg-slate-800/50 transition"
                                     >
                                         <div className="flex flex-col">
                                             <div>
                                                 <img src={video.smallImg} width={200} height={120} alt="No image" />
                                             </div>
-                                            <div>
+                                            <div className='flex justify-baseline pt-4'>
                                                 <span className="font-medium">{video.title}</span>
                                             </div>
                                         </div>
@@ -287,19 +283,19 @@ export default function StreamView({
                                                 onClick={() => handleVote(video.id, true)}
                                                 disabled={video.haveUpvoted}
                                                 className={`px-3 py-1 rounded-md border border-slate-700 hover:bg-slate-700 transition ${video.haveUpvoted ? "text-green-400" : "text-slate-300"
-                                                    } ${video.haveUpvoted ? "opacity-50 cursor-not-allowed": ""}`}
+                                                    } ${video.haveUpvoted ? "opacity-50 cursor-not-allowed" : ""}`}
                                             >
-                                                <CircleChevronUp> 
+                                                <CircleChevronUp>
                                                 </CircleChevronUp>
-                                                    {video.upvotes}
+                                                {video.upvotes}
                                             </button>
                                             <button
                                                 onClick={() => handleVote(video.id, false)}
                                                 disabled={!video.haveUpvoted}
-                                                className={`px-3 py-1 rounded-md border border-slate-700 hover:bg-slate-700 transition ${!video.haveUpvoted ? "text-red-400" : "text-slate-300"} ${video.haveUpvoted === false ? "opacity-50 cursor-not-allowed": ""}`}
+                                                className={`px-3 py-1 rounded-md border border-slate-700 hover:bg-slate-700 transition ${!video.haveUpvoted ? "text-red-400" : "text-slate-300"} ${video.haveUpvoted === false ? "opacity-50 cursor-not-allowed" : ""}`}
                                             >
                                                 <CircleChevronDown>
-                                                
+
                                                 </CircleChevronDown>
                                             </button>
                                         </div>
@@ -320,7 +316,7 @@ export default function StreamView({
                         )}
                     </div>
                 </div>
-                 <ToastContainer 
+                <ToastContainer
                     position="top-right"
                     autoClose={3000}
                     hideProgressBar={false}

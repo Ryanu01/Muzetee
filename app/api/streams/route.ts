@@ -43,6 +43,8 @@ export async function POST (req: NextRequest) {
                 userId : session.user.uid,
                 url: data.url,
                 extractedId, 
+                playedTs: new Date(),
+                played: false,
                 type: "Youtube",
                 title: res.title ?? "Cant find video",
                 bigImg: thumbnails[thumbnails.length - 1].url ?? "https://imgs.search.brave.com/QpSeSwiufBTr4QlTzZrh9lSQW2HmMxceS0avU2ZhVX8/rs:fit:860:0:0:0/g:ce/aHR0cHM6Ly9tYXJr/ZXRwbGFjZS5jYW52/YS5jb20vTUFER3h2/SE1JQjAvNC90aHVt/Ym5haWxfbGFyZ2Uv/Y2FudmEtY2xvc2Ut/dXAtcGhvdG8tb2Yt/YS1mdW5ueS1jYXQt/TUFER3h2SE1JQjAu/anBn",
@@ -83,9 +85,10 @@ export async function GET(req: NextRequest) {
 
     const session = await getServerSession(authConfig);
     const currentUserId = session?.user.uid; 
-    const streams = await db.stream.findMany({
+    const [streams, activeStream] = await Promise.all([await db.stream.findMany({
         where: {
-            userId: createId    
+            userId: createId,
+            played: false  
         }, include: {
             _count: {
                 select: {
@@ -98,7 +101,14 @@ export async function GET(req: NextRequest) {
                 }
             } : false
         }
-    })
+    }), db.currentStream.findFirst({
+        where: {
+            userId: createId
+        },
+        include: {
+            stream: true
+        }
+    })])
 
     if(!streams) {
         return NextResponse.json({
@@ -114,6 +124,7 @@ export async function GET(req: NextRequest) {
             ...rest,
             upvotes: _count.upvotes,
             haveUpvoted: rest.upvotes.length ? true : false
-        }))
+        })),
+        activeStream
     })
 }

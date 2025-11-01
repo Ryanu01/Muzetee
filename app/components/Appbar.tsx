@@ -1,4 +1,5 @@
 "use client"
+import { LogIn, LogOut } from "lucide-react";
 
 import { signIn, signOut, useSession } from "next-auth/react"
 
@@ -26,10 +27,10 @@ export function Appbar () {
         </div>
         <div>
             {session.data?.user && <button  className="bg-primary text-primary-foreground px-6 py-2 rounded-lg font-medium hover:bg-primary/90 transition cursor-pointer" onClick={() => signOut()} >
-                logout
+                logOut
             </button>}
-            {!session.data?.user && <button onClick={() => signIn()} className="bg-primary text-primary-foreground px-6 py-2 rounded-lg font-medium hover:bg-primary/90 transition cursor-pointer">
-                singIn
+            {!session.data?.user && <button onClick={() => signIn()} className="cursor-pointer">
+                <LogIn ></LogIn>
         </button>}
             </div>
       </div>
