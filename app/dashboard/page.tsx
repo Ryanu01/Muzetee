@@ -2,9 +2,6 @@
 
 import { signIn, signOut, useSession } from "next-auth/react"
 import { useEffect, useState } from "react"
-import YouTubePlayer from "@/app/components/as"
-import SubmitSongForm from "@/app/components/Submit-song-form"
-import SongQueue from "@/app/components/Song-queue"
 import { Redirect } from "../components/Redirect"
 import axios from "axios"
 import StreamView from "../components/StreamView"
