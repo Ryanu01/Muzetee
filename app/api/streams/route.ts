@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { string, z } from "zod";
 import db from "../../lib/db"
 import youtubesearchapi from "youtube-search-api";
+import { getServerSession } from "next-auth";
+import { authConfig } from "@/app/lib/auth";
 
 var YT_REGEX = /^(?:https?:\/\/)?(?:www\.)?(?:m\.)?(?:youtube\.com\/(?:watch\?(?!.*\blist=)(?:.*&)?v=|embed\/|v\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})(?:[?&]\S+)?$/;
 const CreateStreamSchema = z.object({
@@ -14,7 +16,15 @@ export async function POST (req: NextRequest) {
         const data = CreateStreamSchema.parse(await req.json());
         const isYt = data.url.match(YT_REGEX);
         
-        
+        const session = await getServerSession(authConfig);
+        if(!session?.user.uid) {
+            return NextResponse.json({
+                message: "UnAuthorized"
+            }, {
+                status: 403
+            })
+        }
+
         if(!isYt) {
             return NextResponse.json({
                 message: "Wrong url",
@@ -30,7 +40,7 @@ export async function POST (req: NextRequest) {
         thumbnails.sort((a: {width: number}, b: {width: number}) => a.width < b.width ? -1 : 1)
         const stream = await db.stream.create({
             data: {
-                userId : data.creatorId,
+                userId : session.user.uid,
                 url: data.url,
                 extractedId, 
                 type: "Youtube",
@@ -63,14 +73,47 @@ export async function POST (req: NextRequest) {
 
 export async function GET(req: NextRequest) {
     const createId = req.nextUrl.searchParams.get("creatorId");
+    if(!createId) {
+        return NextResponse.json({
+            message: "No Creator ID"
+        }, {
+            status: 411
+        })
+    }
 
+    const session = await getServerSession(authConfig);
+    const currentUserId = session?.user.uid; 
     const streams = await db.stream.findMany({
         where: {
-            userId: createId ?? ""
+            userId: createId    
+        }, include: {
+            _count: {
+                select: {
+                    upvotes: true
+                }
+            },
+            upvotes: currentUserId ?  {
+                where: {
+                    userId: currentUserId
+                }
+            } : false
         }
     })
 
+    if(!streams) {
+        return NextResponse.json({
+            message: "Unable to fetch streams for the user",
+            createId
+        }, {
+            status: 400
+        })
+    }
+
     return NextResponse.json({
-        streams
+        streams: streams.map(({_count, ...rest}) => ({
+            ...rest,
+            upvotes: _count.upvotes,
+            haveUpvoted: rest.upvotes.length ? true : false
+        }))
     })
 }

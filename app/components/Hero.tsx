@@ -1,5 +1,5 @@
+"use client"
 import Image from "next/image";
-
 export default function Hero() {
   return (
     <section className="pt-32 pb-20 px-6">

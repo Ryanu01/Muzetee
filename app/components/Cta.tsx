@@ -1,3 +1,4 @@
+"use client"
 export default function CTA() {
   return (
     <section id="cta" className="py-20 px-6 border-t border-border">

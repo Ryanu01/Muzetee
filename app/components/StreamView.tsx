@@ -43,27 +43,38 @@ export default function StreamView({
     const videoPlayerRef = useRef<HTMLDivElement>(null);
 
 
-    async function refreshStreams() {
-        const res = await axios.get('/api/streams/my', {
-            withCredentials: true
-        })
-        
-        const json = await res.data;
-        setQueue(json.streams.sort((a: any, b: any) => a.upvotes < b.upvotes ? 1 : -1));
-        
-        console.log(res.data);
-        
-        console.log(json.streams.id);
-        setCurrentVideo(video => {
-            console.log("1 ",video);
+   async function refreshStreams() {
+    try {
+            console.log("Creator ID:", creatorId); // Add this
+            const res = await axios.get(`/api/streams/?creatorId=${creatorId}`, {
+                withCredentials: true
+            });
             
-            if (video?.id === json.streams[0].id) {
-                return video;
+            const { streams } = res.data;
+            
+            if (!streams || streams.length === 0) {
+                console.log("No streams available");
+                    setQueue([]);
+                    setCurrentVideo(null);
+                    return;
             }
-            return json.streams[0];
-        })
+            
+            const sortedStreams = streams.sort((a: any, b: any) => b.upvotes - a.upvotes);
+            setQueue(sortedStreams);
+            
+            console.log("Streams:", streams);
+            console.log("First stream ID:", streams[0]?.id);
+            
+            setCurrentVideo(video => {
+                if (video?.id === sortedStreams[0].id) {
+                    return video; 
+                }
+                return sortedStreams[0];
+            });
+        } catch (error) {
+            console.error("Error refreshing streams:", error);
+        }
     }
-
     useEffect(() => {
         refreshStreams();
         const interval = setInterval(() => {
@@ -150,7 +161,7 @@ export default function StreamView({
     
 
         const handleShare = () => {
-        const shareableLink = `http://${window.location.hostname}:3000/creator/${creatorId}`
+        const shareableLink = `${window.location.hostname}/creator/${creatorId}`
         navigator.clipboard.writeText(shareableLink).then(() => {
         toast.success('Link copied to clipboard!', {
             position: "top-right",
