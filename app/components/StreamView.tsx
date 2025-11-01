@@ -45,7 +45,7 @@ export default function StreamView({
 
    async function refreshStreams() {
     try {
-            console.log("Creator ID:", creatorId); // Add this
+            console.log("Creator ID:", creatorId); 
             const res = await axios.get(`/api/streams/?creatorId=${creatorId}`, {
                 withCredentials: true
             });
